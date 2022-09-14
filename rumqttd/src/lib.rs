@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use std::{io, thread};
 use std::{net::SocketAddr, sync::Arc};
+#[cfg(feature = "use-rustls")]
+use tokio_rustls::rustls::ServerConfig;
 
 mod mqttbytes;
 pub mod rumqttlog;
@@ -119,13 +121,10 @@ enum ServerTLSAcceptor {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(untagged)]
+#[derive(Clone)]
 pub enum ServerCert {
     RustlsCert {
-        ca_path: String,
-        cert_path: String,
-        key_path: String,
+        config: ServerConfig,
     },
     NativeTlsCert {
         pkcs12_path: String,
@@ -133,9 +132,26 @@ pub enum ServerCert {
     },
 }
 
+impl std::fmt::Debug for ServerCert {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::RustlsCert { config } => f.debug_struct("RustlsCert").finish(),
+            Self::NativeTlsCert {
+                pkcs12_path,
+                pkcs12_pass,
+            } => f
+                .debug_struct("NativeTlsCert")
+                .field("pkcs12_path", pkcs12_path)
+                .field("pkcs12_pass", pkcs12_pass)
+                .finish(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ServerSettings {
     pub listen: SocketAddr,
+    #[serde(skip)]
     pub cert: Option<ServerCert>,
     pub next_connection_delay_ms: u64,
     pub connections: ConnectionSettings,
@@ -307,74 +323,11 @@ impl Server {
     }
 
     #[cfg(feature = "use-rustls")]
-    fn tls_rustls(
-        &self,
-        cert_path: &str,
-        key_path: &str,
-        ca_path: &str,
-    ) -> Result<Option<ServerTLSAcceptor>, Error> {
-        use tokio_rustls::rustls::{RootCertStore, ServerConfig};
+    fn tls_rustls(&self, server: &ServerConfig) -> Result<Option<ServerTLSAcceptor>, Error> {
+        error!("Sanity test -- loading key");
 
-        let (certs, key) = {
-            // Get certificates
-            let cert_file = File::open(&cert_path);
-            let cert_file =
-                cert_file.map_err(|_| Error::ServerCertNotFound(cert_path.to_owned()))?;
-            let certs = certs(&mut BufReader::new(cert_file));
-            let certs = certs.map_err(|_| Error::InvalidServerCert(cert_path.to_string()))?;
-            let certs = certs
-                .iter()
-                .map(|cert| Certificate(cert.to_owned()))
-                .collect();
-
-            // Get private key
-            let key_file = File::open(&key_path);
-            let key_file = key_file.map_err(|_| ServerKeyNotFound(key_path.to_owned()))?;
-            let keys = rsa_private_keys(&mut BufReader::new(key_file));
-            let keys = keys.map_err(|_| Error::InvalidServerKey(key_path.to_owned()))?;
-
-            // Get the first key
-            let key = match keys.first() {
-                Some(k) => k.clone(),
-                None => return Err(Error::InvalidServerKey(key_path.to_owned())),
-            };
-
-            (certs, PrivateKey(key))
-        };
-
-        // client authentication with a CA. CA isn't required otherwise
-        let server_config = {
-            let ca_file = File::open(ca_path);
-            let ca_file = ca_file.map_err(|_| Error::CaFileNotFound(ca_path.to_owned()))?;
-            let ca_file = &mut BufReader::new(ca_file);
-            let ca_certs = rustls_pemfile::certs(ca_file)?;
-            let ca_cert = ca_certs
-                .first()
-                .map(|c| Certificate(c.to_owned()))
-                .ok_or_else(|| Error::InvalidCACert(ca_path.to_string()))?;
-            let mut store = RootCertStore::empty();
-            store
-                .add(&ca_cert)
-                .map_err(|_| Error::InvalidCACert(ca_path.to_string()))?;
-            ServerConfig::builder()
-                .with_safe_defaults()
-                .with_client_cert_verifier(AllowAnyAuthenticatedClient::new(store))
-                .with_single_cert(certs, key)?
-        };
-
-        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(server_config));
+        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(server.clone()));
         Ok(Some(ServerTLSAcceptor::RustlsAcceptor { acceptor }))
-    }
-
-    #[allow(dead_code)]
-    #[cfg(not(feature = "use-rustls"))]
-    fn tls_rustls(
-        &self,
-        _cert_path: &str,
-        _key_path: &str,
-        _ca_path: &str,
-    ) -> Result<Option<ServerTLSAcceptor>, Error> {
-        Err(Error::RustlsNotEnabled)
     }
 
     async fn start(&self) -> Result<(), Error> {
@@ -388,11 +341,7 @@ impl Server {
         #[cfg(any(feature = "use-rustls", feature = "use-native-tls"))]
         let acceptor = match &self.config.cert {
             Some(c) => match c {
-                ServerCert::RustlsCert {
-                    ca_path,
-                    cert_path,
-                    key_path,
-                } => self.tls_rustls(cert_path, key_path, ca_path)?,
+                ServerCert::RustlsCert { config } => self.tls_rustls(config)?,
                 ServerCert::NativeTlsCert {
                     pkcs12_path,
                     pkcs12_pass,
@@ -496,11 +445,14 @@ impl Connector {
     /// denial of service attacks (rogue clients which only does network connection without sending
     /// mqtt connection packet to make make the server reach its concurrent connection limit)
     async fn new_connection(&self, network: Network) -> Result<(), Error> {
+        info!("Starting new connection");
         let config = self.config.clone();
         let router_tx = self.router_tx.clone();
 
         // Start the link
+        info!("Creating the remote link");
         let (client_id, id, mut link) = RemoteLink::new(config, router_tx, network).await?;
+        info!("Starting the link");
         let (execute_will, pending) = match link.start().await {
             // Connection get close. This shouldn't usually happen
             Ok(_) => {

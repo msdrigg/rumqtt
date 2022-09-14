@@ -1,5 +1,6 @@
 use crate::mqttbytes::{self, v4::*};
 use bytes::BytesMut;
+use log::info;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::state;
@@ -78,6 +79,7 @@ impl Network {
     }
 
     pub async fn read(&mut self) -> io::Result<Packet> {
+        info!("Calling read");
         loop {
             let required = match read(&mut self.read, self.max_incoming_size) {
                 Ok(packet) => return Ok(packet),
@@ -92,6 +94,7 @@ impl Network {
     }
 
     pub async fn read_connect(&mut self) -> io::Result<Connect> {
+        info!("Calling read-connect");
         let packet = self.read().await?;
 
         match packet {

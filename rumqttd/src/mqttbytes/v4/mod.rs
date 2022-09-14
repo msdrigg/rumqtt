@@ -15,6 +15,7 @@ mod unsubscribe;
 
 pub use connack::*;
 pub use connect::*;
+use log::error;
 pub use ping::*;
 pub use puback::*;
 pub use pubcomp::*;
@@ -47,11 +48,22 @@ pub enum Packet {
 
 /// Reads a stream of bytes and extracts next MQTT packet out of it
 pub fn read(stream: &mut BytesMut, max_size: usize) -> Result<Packet, Error> {
-    let fixed_header = check(stream.iter(), max_size)?;
+    error!("Sanity test: reading");
+    let fixed_header = check(stream.iter(), max_size);
+    error!("Checking on read, fh: {:?}", &fixed_header);
+
+    let fixed_header = fixed_header?;
 
     // Test with a stream with exactly the size to check border panics
     let packet = stream.split_to(fixed_header.frame_length());
-    let packet_type = fixed_header.packet_type()?;
+    let packet_type = fixed_header.packet_type();
+
+    error!(
+        "Checking on read, bytes: {:?}, packet_type: {:?}",
+        &String::from_utf8_lossy(&packet),
+        packet_type
+    );
+    let packet_type = packet_type?;
 
     if fixed_header.remaining_len == 0 {
         // no payload packets

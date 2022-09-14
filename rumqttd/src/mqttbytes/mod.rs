@@ -5,6 +5,7 @@
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use core::fmt;
+use log::error;
 use std::slice::Iter;
 
 mod topic;
@@ -169,7 +170,12 @@ pub fn check(stream: Iter<u8>, max_packet_size: usize) -> Result<FixedHeader, Er
     // Create fixed header if there are enough bytes in the stream
     // to frame full packet
     let stream_len = stream.len();
-    let fixed_header = parse_fixed_header(stream)?;
+    let fixed_header = parse_fixed_header(stream);
+    error!(
+        "Checking on read, fh: {:?}, sl: {:?}",
+        &fixed_header, &stream_len
+    );
+    let fixed_header = fixed_header?;
 
     // Don't let rogue connections attack with huge payloads.
     // Disconnect them before reading all that data
@@ -180,6 +186,12 @@ pub fn check(stream: Iter<u8>, max_packet_size: usize) -> Result<FixedHeader, Er
     // If the current call fails due to insufficient bytes in the stream,
     // after calculating remaining length, we extend the stream
     let frame_length = fixed_header.frame_length();
+
+    error!(
+        "Checking on read, fh: {:?}, fl: {:?}, sl: {:?}",
+        &fixed_header, &frame_length, &stream_len
+    );
+
     if stream_len < frame_length {
         return Err(Error::InsufficientBytes(frame_length - stream_len));
     }
@@ -260,6 +272,8 @@ fn read_mqtt_bytes(stream: &mut Bytes) -> Result<Bytes, Error> {
 
 /// Reads a string from bytes stream
 fn read_mqtt_string(stream: &mut Bytes) -> Result<String, Error> {
+    error!("Reading mqtt string {:?}", stream);
+    error!("Reading mqtt string {:?}", hex::encode(&stream));
     let s = read_mqtt_bytes(stream)?;
     match String::from_utf8(s.to_vec()) {
         Ok(v) => Ok(v),
