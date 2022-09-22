@@ -5,7 +5,7 @@
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use core::fmt;
-use log::error;
+use log::trace;
 use std::slice::Iter;
 
 mod topic;
@@ -171,9 +171,10 @@ pub fn check(stream: Iter<u8>, max_packet_size: usize) -> Result<FixedHeader, Er
     // to frame full packet
     let stream_len = stream.len();
     let fixed_header = parse_fixed_header(stream);
-    error!(
+    trace!(
         "Checking on read, fh: {:?}, sl: {:?}",
-        &fixed_header, &stream_len
+        &fixed_header,
+        &stream_len
     );
     let fixed_header = fixed_header?;
 
@@ -187,9 +188,11 @@ pub fn check(stream: Iter<u8>, max_packet_size: usize) -> Result<FixedHeader, Er
     // after calculating remaining length, we extend the stream
     let frame_length = fixed_header.frame_length();
 
-    error!(
+    trace!(
         "Checking on read, fh: {:?}, fl: {:?}, sl: {:?}",
-        &fixed_header, &frame_length, &stream_len
+        &fixed_header,
+        &frame_length,
+        &stream_len
     );
 
     if stream_len < frame_length {
@@ -272,8 +275,8 @@ fn read_mqtt_bytes(stream: &mut Bytes) -> Result<Bytes, Error> {
 
 /// Reads a string from bytes stream
 fn read_mqtt_string(stream: &mut Bytes) -> Result<String, Error> {
-    error!("Reading mqtt string {:?}", stream);
-    error!("Reading mqtt string {:?}", hex::encode(&stream));
+    trace!("Reading mqtt string {:?}", stream);
+    trace!("Reading mqtt string {:?}", hex::encode(&stream));
     let s = read_mqtt_bytes(stream)?;
     match String::from_utf8(s.to_vec()) {
         Ok(v) => Ok(v),

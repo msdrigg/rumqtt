@@ -11,7 +11,7 @@ use crate::{
     Config, Id, Server,
 };
 use futures_util::stream::{FuturesUnordered, StreamExt};
-use log::{error, trace, warn};
+use log::trace;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LinkError {
@@ -109,7 +109,7 @@ impl AsyncLinkRx {
                 Ok(None)
             }
             notification => {
-                warn!("{:?} not supported in local link", notification);
+                trace!("{:?} not supported in local link", notification);
                 Ok(None)
             }
         }
@@ -186,7 +186,7 @@ pub fn construct_broker(
             let router_tx = router_tx.clone();
             async {
                 if let Err(e) = Server::new(id, config, router_tx).start().await {
-                    error!("Accept loop error: {:?}", e);
+                    trace!("Accept loop error: {:?}", e);
                 }
             }
         })

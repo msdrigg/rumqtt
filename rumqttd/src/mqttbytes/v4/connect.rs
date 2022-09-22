@@ -1,6 +1,6 @@
 use super::*;
 use bytes::{Buf, Bytes};
-use log::error;
+use log::trace;
 
 /// Connection packet initiated by the client
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,7 +63,7 @@ impl Connect {
     }
 
     pub fn read(fixed_header: FixedHeader, mut bytes: Bytes) -> Result<Connect, Error> {
-        error!(
+        trace!(
             "Checking on read in connect, fh: {:?}, bytes: {:?}",
             &fixed_header,
             &String::from_utf8_lossy(&bytes)
@@ -74,15 +74,16 @@ impl Connect {
         // Variable header
         let protocol_name = read_mqtt_string(&mut bytes);
         let protocol_level = read_u8(&mut bytes);
-        error!(
+        trace!(
             "Checking on protocol in connect, pn: {:?}, pl: {:?}",
-            protocol_name, protocol_level
+            protocol_name,
+            protocol_level
         );
         let protocol_name = protocol_name?;
         let protocol_level = protocol_level?;
 
         if protocol_name != "MQTT" {
-            error!(
+            trace!(
                 "Error with protocol, expected MQTT got {:?}",
                 &protocol_name
             );

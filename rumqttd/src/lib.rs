@@ -324,7 +324,7 @@ impl Server {
 
     #[cfg(feature = "use-rustls")]
     fn tls_rustls(&self, server: &ServerConfig) -> Result<Option<ServerTLSAcceptor>, Error> {
-        error!("Sanity test -- loading key");
+        trace!("Sanity test -- loading key");
 
         let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(server.clone()));
         Ok(Some(ServerTLSAcceptor::RustlsAcceptor { acceptor }))
