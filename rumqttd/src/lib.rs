@@ -1,5 +1,5 @@
 use jackiechan::Sender;
-use log::{error, info};
+use log::{error, info, trace};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use std::{io, thread};
@@ -135,7 +135,7 @@ pub enum ServerCert {
 impl std::fmt::Debug for ServerCert {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::RustlsCert { config } => f.debug_struct("RustlsCert").finish(),
+            Self::RustlsCert { .. } => f.debug_struct("RustlsCert").finish(),
             Self::NativeTlsCert {
                 pkcs12_path,
                 pkcs12_pass,

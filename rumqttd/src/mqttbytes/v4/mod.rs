@@ -15,7 +15,6 @@ mod unsubscribe;
 
 pub use connack::*;
 pub use connect::*;
-use log::error;
 use log::trace;
 pub use ping::*;
 pub use puback::*;
