@@ -280,7 +280,7 @@ impl<P: Protocol + Clone + Send + 'static> Server<P> {
             let network = match self.tls_accept(stream).await {
                 Ok(o) => o,
                 Err(e) => {
-                    error!("Tls accept error = {:?}", e);
+                    error!("Tls accept error {:?} at addr {:?}", e, &addr);
                     continue;
                 }
             };
