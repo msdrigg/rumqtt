@@ -95,7 +95,7 @@ impl TLSAcceptor {
                 capath,
                 certpath,
                 keypath,
-            } => Self::rustls(capath, certpath, keypath),
+            } => Self::rustls(certpath, keypath, capath),
             #[cfg(feature = "use-native-tls")]
             TlsConfig::NativeTls {
                 pkcs12path,
