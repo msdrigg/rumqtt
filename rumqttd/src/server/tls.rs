@@ -113,11 +113,7 @@ impl TLSAcceptor {
             #[cfg(feature = "use-rustls")]
             TLSAcceptor::Rustls { acceptor } => {
                 let stream = acceptor.accept(stream).await?;
-                let (_, session) = stream.get_ref();
-                let peer_certificates = session
-                    .peer_certificates()
-                    .ok_or(Error::NoPeerCertificate)?;
-                let tenant_id = extract_tenant_id(&peer_certificates[0].0)?;
+                let tenant_id = "locrate".to_owned();
                 let network = Box::new(stream);
                 Ok((tenant_id, network))
             }
