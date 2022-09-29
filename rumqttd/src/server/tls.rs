@@ -58,25 +58,6 @@ pub enum Error {
     CertificateParse,
 }
 
-/// Extract uid from certificate's subject organization field
-fn extract_tenant_id(der: &[u8]) -> Result<String, Error> {
-    let (_, cert) =
-        x509_parser::parse_x509_certificate(der).map_err(|_| Error::CertificateParse)?;
-    let tenant_id = match cert.subject().iter_organization().next() {
-        Some(org) => match org.as_str() {
-            Ok(val) => val.to_string(),
-            Err(_) => return Err(Error::InvalidTenant),
-        },
-        None => return Err(Error::MissingTenantId),
-    };
-
-    if tenant_id.chars().any(|c| !c.is_alphanumeric()) {
-        return Err(Error::InvalidTenantId(tenant_id));
-    }
-
-    Ok(tenant_id)
-}
-
 #[allow(dead_code)]
 pub enum TLSAcceptor {
     #[cfg(feature = "use-rustls")]
@@ -108,14 +89,13 @@ impl TLSAcceptor {
         }
     }
 
-    pub async fn accept(&self, stream: TcpStream) -> Result<(String, Box<dyn N>), Error> {
+    pub async fn accept(&self, stream: TcpStream) -> Result<Box<dyn N>, Error> {
         match self {
             #[cfg(feature = "use-rustls")]
             TLSAcceptor::Rustls { acceptor } => {
                 let stream = acceptor.accept(stream).await?;
-                let tenant_id = "locrate".to_owned();
                 let network = Box::new(stream);
-                Ok((tenant_id, network))
+                Ok(network)
             }
             #[cfg(feature = "use-native-tls")]
             TLSAcceptor::NativeTLS { acceptor } => {

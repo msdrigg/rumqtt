@@ -244,14 +244,14 @@ impl<P: Protocol + Clone + Send + 'static> Server<P> {
     }
 
     // Depending on TLS or not create a new Network
-    async fn tls_accept(&self, stream: TcpStream) -> Result<(Box<dyn N>, Option<String>), Error> {
+    async fn tls_accept(&self, stream: TcpStream) -> Result<Box<dyn N>, Error> {
         #[cfg(any(feature = "use-rustls", feature = "use-native-tls"))]
         match &self.config.tls {
             Some(c) => {
-                let (tenant_id, network) = TLSAcceptor::new(c)?.accept(stream).await?;
-                Ok((network, Some(tenant_id)))
+                let network = TLSAcceptor::new(c)?.accept(stream).await?;
+                Ok(network)
             }
-            None => Ok((Box::new(stream), None)),
+            None => Ok(Box::new(stream)),
         }
         #[cfg(not(any(feature = "use-rustls", feature = "use-native-tls")))]
         Ok((Box::new(stream), None))
@@ -277,7 +277,7 @@ impl<P: Protocol + Clone + Send + 'static> Server<P> {
                 }
             };
 
-            let (network, tenant_id) = match self.tls_accept(stream).await {
+            let network = match self.tls_accept(stream).await {
                 Ok(o) => o,
                 Err(e) => {
                     error!("Tls accept error = {:?}", e);
@@ -298,7 +298,7 @@ impl<P: Protocol + Clone + Send + 'static> Server<P> {
             match shadow {
                 #[cfg(feature = "websockets")]
                 true => task::spawn(shadow_connection(config, router_tx, network)),
-                _ => task::spawn(remote(config, tenant_id, router_tx, network, protocol)),
+                _ => task::spawn(remote(config, None, router_tx, network, protocol)),
             };
 
             time::sleep(delay).await;
