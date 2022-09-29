@@ -10,8 +10,7 @@ use tokio_native_tls::native_tls::Error as NativeTlsError;
 
 #[cfg(feature = "use-rustls")]
 use tokio_rustls::rustls::{
-    server::AllowAnyAuthenticatedClient, Certificate, Error as RustlsError, PrivateKey,
-    RootCertStore, ServerConfig,
+    Certificate, Error as RustlsError, PrivateKey, RootCertStore, ServerConfig,
 };
 
 #[cfg(feature = "use-rustls")]
@@ -168,6 +167,8 @@ impl TLSAcceptor {
         key_path: &String,
         ca_path: &String,
     ) -> Result<TLSAcceptor, Error> {
+        use tokio_rustls::rustls::server::NoClientAuth;
+
         let (certs, key) = {
             // Get certificates
             let cert_file = File::open(&cert_path);
@@ -182,12 +183,15 @@ impl TLSAcceptor {
             // Get private key
             let key_file = File::open(&key_path);
             let key_file = key_file.map_err(|_| Error::ServerKeyNotFound(key_path.clone()))?;
-            let keys = rustls_pemfile::rsa_private_keys(&mut BufReader::new(key_file));
+            let keys = rustls_pemfile::read_one(&mut BufReader::new(key_file));
             let keys = keys.map_err(|_| Error::InvalidServerKey(key_path.clone()))?;
 
-            // Get the first key
-            let key = match keys.first() {
-                Some(k) => k.clone(),
+            // Get the first key (any key works)
+            let key = match keys {
+                Some(rustls_pemfile::Item::RSAKey(k)) => k.clone(),
+                Some(rustls_pemfile::Item::PKCS8Key(k)) => k.clone(),
+                Some(rustls_pemfile::Item::ECKey(k)) => k.clone(),
+                Some(_) => return Err(Error::InvalidServerKey(key_path.clone())),
                 None => return Err(Error::InvalidServerKey(key_path.clone())),
             };
 
@@ -212,7 +216,7 @@ impl TLSAcceptor {
 
             ServerConfig::builder()
                 .with_safe_defaults()
-                .with_client_cert_verifier(AllowAnyAuthenticatedClient::new(store))
+                .with_client_cert_verifier(NoClientAuth::new())
                 .with_single_cert(certs, key)?
         };
 

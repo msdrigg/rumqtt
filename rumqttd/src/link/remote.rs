@@ -31,6 +31,8 @@ pub enum Error {
     Recv(#[from] RecvError),
     #[error("Persistent session requires valid client id")]
     InvalidClientId,
+    #[error("Invalid username or password provided")]
+    InvalidUsernameOrPassword,
     #[error("Unexpected router message")]
     NotConnectionAck,
     #[error("ConnAck error {0}")]
@@ -71,7 +73,17 @@ impl<P: Protocol> RemoteLink<P> {
         .await??;
 
         let (connect, lastwill) = match packet {
-            Packet::Connect(connect, _, lastwill, ..) => (connect, lastwill),
+            Packet::Connect(connect, _, lastwill, _, login) => {
+                if let Some(login) = login {
+                    if login.username == config.username && login.password == config.password {
+                        (connect, lastwill)
+                    } else {
+                        return Err(Error::InvalidUsernameOrPassword);
+                    }
+                } else {
+                    return Err(Error::InvalidUsernameOrPassword);
+                }
+            }
             packet => return Err(Error::NotConnectPacket(packet)),
         };
 

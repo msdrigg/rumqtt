@@ -23,7 +23,7 @@ tokio = { version = "1", features = ["full"] }
 # paho-mqtt = "0.7"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
-jemallocator = "0.3"
+jemallocator = "0.5"
 
 [[bin]]
 name = "rumqttasync"

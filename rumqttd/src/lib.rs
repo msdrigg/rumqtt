@@ -77,6 +77,8 @@ pub struct ConnectionSettings {
     pub max_inflight_size: usize,
     #[serde(default)]
     pub dynamic_filters: bool,
+    pub username: String,
+    pub password: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
